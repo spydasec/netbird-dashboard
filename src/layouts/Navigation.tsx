@@ -376,18 +376,7 @@ const NetworkingItems = () => {
 
       <SidebarItem
         icon={<CloudIcon size={16} />}
-        labelClassName={"pr-0"}
-        label={
-          <div className={"flex items-center gap-2"}>
-            Cloud Access
-            <SmallBadge
-              text={"Beta"}
-              variant={"sky"}
-              className={"text-[8px] leading-none py-[3px] px-[5px]"}
-              textClassName={"top-0"}
-            />
-          </div>
-        }
+        label="Cloud Access"
         href={"/cloud-access"}
         exactPathMatch={true}
         visible={
