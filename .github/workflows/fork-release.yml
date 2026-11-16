@@ -1,0 +1,223 @@
+# Fork release: builds the dashboard images the way upstream's
+# build_and_push.yml does and publishes them under this fork's names. Kept
+# separate from upstream's workflows (disabled in this fork) so syncing with
+# upstream never conflicts. If upstream changes its build steps, mirror them
+# here.
+#
+# Triggered by a tag of the form vX.Y.Z-spydasec.N, where X.Y.Z is the upstream
+# dashboard release it is based on and N counts this fork's builds of it:
+#
+#   git tag v2.97.0-spydasec.1 && git push origin v2.97.0-spydasec.1
+#
+# Publishes the standard, rootless and UBI images (multi-arch) to Docker Hub
+# $DOCKERHUB_IMAGE and $GHCR_IMAGE, tagged with the version and, for the newest
+# fork release, latest; and a GitHub Release with generated notes.
+#
+# Dry run: start "Fork release" by hand from the Actions tab to build all
+# images without pushing or releasing anything.
+#
+# Needs repository secrets DOCKER_USER and DOCKER_TOKEN (a Docker Hub access
+# token with read/write access). GHCR uses the workflow's own token.
+name: Fork release
+
+on:
+  push:
+    tags:
+      - "v*-spydasec.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: fork-release
+  cancel-in-progress: false
+
+env:
+  DOCKERHUB_IMAGE: spydasec/dashboard
+  GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/dashboard
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags, to decide whether this release moves latest
+          persist-credentials: false
+
+      - name: Validate tag and decide whether it moves latest
+        id: version
+        run: |
+          set -euo pipefail
+          echo "release=$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "version=development" >> "$GITHUB_OUTPUT"
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="$GITHUB_REF_NAME"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-spydasec\.[0-9]+$ ]]; then
+            echo "::error::tag $tag must look like v2.97.0-spydasec.1"
+            exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          echo "push=true" >> "$GITHUB_OUTPUT"
+          # Only the newest fork release moves latest, so rebuilding an older
+          # one cannot drag it backwards. Upstream tags are ignored.
+          newest=$(git tag -l 'v*-spydasec.*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-spydasec\.[0-9]+$' | sort -V | tail -n1)
+          if [[ "$tag" == "$newest" ]]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$tag is older than $newest; latest tags are left alone"
+          fi
+
+      - name: setup-node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - run: echo '{}' > .local-config.json
+
+      - name: Download IronRDP release TS files
+        uses: robinraju/release-downloader@v1.13
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: netbirdio/IronRDP
+          tag: v0.0.2
+          fileName: "*.ts"
+          out-file-path: 'public/ironrdp-pkg'
+
+      - name: Download IronRDP release JS files
+        uses: robinraju/release-downloader@v1.13
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: netbirdio/IronRDP
+          tag: v0.0.2
+          fileName: "*.js"
+          out-file-path: 'public/ironrdp-pkg'
+
+      - name: Download IronRDP release WASM file
+        uses: robinraju/release-downloader@v1.13
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: netbirdio/IronRDP
+          tag: v0.0.2
+          fileName: "ironrdp_web_bg.wasm"
+          out-file-path: 'public/ironrdp-pkg'
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_DASHBOARD_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Collect third-party licenses for the UBI image
+        run: mkdir -p licenses && node docker/third-party-licenses.mjs > licenses/THIRD-PARTY-LICENSES.txt
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: |
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ steps.version.outputs.latest }}
+            type=raw,value=development,enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Docker meta (rootless)
+        id: meta_rootless
+        uses: docker/metadata-action@v6
+        with:
+          images: |
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
+          flavor: |
+            latest=false
+            suffix=-rootless,onlatest=true
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ steps.version.outputs.latest }}
+            type=raw,value=development,enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Docker meta (ubi)
+        id: meta_ubi
+        uses: docker/metadata-action@v6
+        with:
+          images: |
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=tag,suffix=-ubi
+            type=raw,value=ubi-latest,enable=${{ steps.version.outputs.latest }}
+            type=raw,value=development-ubi,enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Login to Docker Hub
+        if: steps.version.outputs.push == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      - name: Login to the GitHub container registry
+        if: steps.version.outputs.push == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: ${{ steps.version.outputs.push == 'true' }}
+          platforms: linux/amd64,linux/arm64,linux/arm
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Build and push (rootless)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile.rootless
+          push: ${{ steps.version.outputs.push == 'true' }}
+          platforms: linux/amd64,linux/arm64,linux/arm
+          tags: ${{ steps.meta_rootless.outputs.tags }}
+          labels: ${{ steps.meta_rootless.outputs.labels }}
+      - name: Build and push (ubi)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile.ubi
+          push: ${{ steps.version.outputs.push == 'true' }}
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+            RELEASE=${{ steps.version.outputs.release }}
+          tags: ${{ steps.meta_ubi.outputs.tags }}
+          labels: ${{ steps.meta_ubi.outputs.labels }}
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.push == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.version }}
+          LATEST: ${{ steps.version.outputs.latest }}
+        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "$TAG" --latest="$LATEST"
