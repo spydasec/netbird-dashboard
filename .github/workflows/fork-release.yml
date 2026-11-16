@@ -64,6 +64,8 @@ jobs:
             exit 1
           fi
           echo "version=$tag" >> "$GITHUB_OUTPUT"
+          # Image tags drop the leading v, like the netbird images (2.97.0-spydasec.1).
+          echo "image_tag=${tag#v}" >> "$GITHUB_OUTPUT"
           echo "push=true" >> "$GITHUB_OUTPUT"
           # Only the newest fork release moves latest, so rebuilding an older
           # one cannot drag it backwards. Upstream tags are ignored.
@@ -136,7 +138,7 @@ jobs:
           flavor: |
             latest=false
           tags: |
-            type=ref,event=tag
+            type=raw,value=${{ steps.version.outputs.image_tag }},enable=${{ steps.version.outputs.push == 'true' }}
             type=raw,value=latest,enable=${{ steps.version.outputs.latest }}
             type=raw,value=development,enable=${{ github.event_name == 'workflow_dispatch' }}
 
@@ -151,7 +153,7 @@ jobs:
             latest=false
             suffix=-rootless,onlatest=true
           tags: |
-            type=ref,event=tag
+            type=raw,value=${{ steps.version.outputs.image_tag }},enable=${{ steps.version.outputs.push == 'true' }}
             type=raw,value=latest,enable=${{ steps.version.outputs.latest }}
             type=raw,value=development,enable=${{ github.event_name == 'workflow_dispatch' }}
 
@@ -165,7 +167,7 @@ jobs:
           flavor: |
             latest=false
           tags: |
-            type=ref,event=tag,suffix=-ubi
+            type=raw,value=${{ steps.version.outputs.image_tag }},suffix=-ubi,enable=${{ steps.version.outputs.push == 'true' }}
             type=raw,value=ubi-latest,enable=${{ steps.version.outputs.latest }}
             type=raw,value=development-ubi,enable=${{ github.event_name == 'workflow_dispatch' }}
 
