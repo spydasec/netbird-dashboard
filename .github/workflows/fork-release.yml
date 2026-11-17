@@ -4,14 +4,14 @@
 # upstream never conflicts. If upstream changes its build steps, mirror them
 # here.
 #
-# Triggered by a tag of the form vX.Y.Z-spydasec.N, where X.Y.Z is the upstream
+# Triggered by a tag of the form vX.Y.Z-N, where X.Y.Z is the upstream
 # dashboard release it is based on and N counts this fork's builds of it:
 #
-#   git tag v2.97.0-spydasec.1 && git push origin v2.97.0-spydasec.1
+#   git tag v2.97.0-1 && git push origin v2.97.0-1
 #
 # Publishes the standard, rootless and UBI images (multi-arch) to Docker Hub
-# $DOCKERHUB_IMAGE and $GHCR_IMAGE, tagged with the version and, for the newest
-# fork release, latest; and a GitHub Release with generated notes.
+# $DOCKERHUB_IMAGE and $GHCR_IMAGE, tagged with the version (2.97.0-1) and,
+# for the newest fork release, latest; and a GitHub Release with generated notes.
 #
 # Dry run: start "Fork release" by hand from the Actions tab to build all
 # images without pushing or releasing anything.
@@ -23,7 +23,7 @@ name: Fork release
 on:
   push:
     tags:
-      - "v*-spydasec.*"
+      - "v[0-9]+.[0-9]+.[0-9]+-[0-9]+"
   workflow_dispatch:
 
 permissions:
@@ -59,17 +59,17 @@ jobs:
             exit 0
           fi
           tag="$GITHUB_REF_NAME"
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-spydasec\.[0-9]+$ ]]; then
-            echo "::error::tag $tag must look like v2.97.0-spydasec.1"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; then
+            echo "::error::tag $tag must look like v2.97.0-1"
             exit 1
           fi
           echo "version=$tag" >> "$GITHUB_OUTPUT"
-          # Image tags drop the leading v, like the netbird images (2.97.0-spydasec.1).
+          # Image tags drop the leading v, like the netbird images (2.97.0-1).
           echo "image_tag=${tag#v}" >> "$GITHUB_OUTPUT"
           echo "push=true" >> "$GITHUB_OUTPUT"
           # Only the newest fork release moves latest, so rebuilding an older
           # one cannot drag it backwards. Upstream tags are ignored.
-          newest=$(git tag -l 'v*-spydasec.*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-spydasec\.[0-9]+$' | sort -V | tail -n1)
+          newest=$(git tag -l 'v*-*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$' | sort -V | tail -n1)
           if [[ "$tag" == "$newest" ]]; then
             echo "latest=true" >> "$GITHUB_OUTPUT"
           else

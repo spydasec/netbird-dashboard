@@ -67,7 +67,7 @@ const releaseParts = (version: string): number[] =>
     });
 
 /**
- * The pre-release label of a version ("spydasec.3" in "0.83.1-spydasec.3"),
+ * The pre-release label of a version ("3" in "0.83.1-3"),
  * without build metadata; empty for a plain release.
  */
 const preRelease = (version: string): string => {
@@ -165,7 +165,7 @@ export const isNewerVersion = (current: string, latest: string): boolean => {
   }
 
   // Same release. Only when both carry a pre-release label are they ordered
-  // by it, as semver does: fork builds (0.83.1-spydasec.2 → 0.83.1-spydasec.3)
+  // by it, as semver does: fork builds (0.83.1-2 → 0.83.1-3)
   // and release candidates. A label on one side only stays "up to date", so a
   // CI or fork build is not told to "update" to the plain release it is built
   // from.
