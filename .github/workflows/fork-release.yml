@@ -119,6 +119,8 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_DASHBOARD_VERSION: ${{ steps.version.outputs.version }}
+          # Peers are compared with this fork's client releases, not upstream's.
+          NEXT_PUBLIC_NETBIRD_RELEASES_REPO: ${{ github.repository_owner }}/netbird
 
       - name: Collect third-party licenses for the UBI image
         run: mkdir -p licenses && node docker/third-party-licenses.mjs > licenses/THIRD-PARTY-LICENSES.txt

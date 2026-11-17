@@ -109,6 +109,42 @@ describe("isNewerVersion (update available)", () => {
       desc: "development build",
     },
     { current: "0.77.0", latest: "", expected: false, desc: "unknown latest" },
+    {
+      current: "0.83.1-spydasec.3",
+      latest: "0.83.1",
+      expected: false,
+      desc: "fork build, same upstream release",
+    },
+    {
+      current: "v0.83.1-spydasec.2",
+      latest: "v0.83.1-spydasec.3",
+      expected: true,
+      desc: "older fork build",
+    },
+    {
+      current: "0.83.1-spydasec.3",
+      latest: "0.83.1-spydasec.3",
+      expected: false,
+      desc: "same fork build",
+    },
+    {
+      current: "0.83.1-spydasec.9",
+      latest: "0.83.1-spydasec.10",
+      expected: true,
+      desc: "fork build numbers compare numerically",
+    },
+    {
+      current: "0.83.1-spydasec.3",
+      latest: "0.84.0-spydasec.1",
+      expected: true,
+      desc: "fork build of a newer release",
+    },
+    {
+      current: "0.60.0-rc.2",
+      latest: "0.60.0-rc.1",
+      expected: false,
+      desc: "older release candidate",
+    },
   ])("$current → $latest → $expected ($desc)", ({ current, latest, expected }) => {
     expect(isNewerVersion(current, latest)).toBe(expected);
   });

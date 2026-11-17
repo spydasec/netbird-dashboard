@@ -4,6 +4,10 @@ import { OperatingSystem } from "@/interfaces/OperatingSystem";
 import { NetbirdRelease } from "@/interfaces/Version";
 
 const GITHUB_API_ENDPOINT = "https://api.github.com";
+// The repository whose latest release peers are compared with. A fork that
+// publishes its own client builds sets this at build time.
+const NETBIRD_RELEASES_REPO =
+  process.env.NEXT_PUBLIC_NETBIRD_RELEASES_REPO || "netbirdio/netbird";
 const LATEST_RELEASE_CHECK_INTERVAL_IN_MINUTES = 10;
 
 export const getLatestNetbirdRelease = async (
@@ -18,7 +22,7 @@ export const getLatestNetbirdRelease = async (
 
   if (runFetch) {
     const data = (await fetch(
-      `${GITHUB_API_ENDPOINT}/repos/netbirdio/netbird/releases/latest`,
+      `${GITHUB_API_ENDPOINT}/repos/${NETBIRD_RELEASES_REPO}/releases/latest`,
     ).then((response) => response.json())) as any;
 
     try {
@@ -61,6 +65,39 @@ const releaseParts = (version: string): number[] =>
       const parsed = parseInt(part, 10);
       return Number.isNaN(parsed) ? 0 : parsed;
     });
+
+/**
+ * The pre-release label of a version ("spydasec.3" in "0.83.1-spydasec.3"),
+ * without build metadata; empty for a plain release.
+ */
+const preRelease = (version: string): string => {
+  const bare = version.trim().replace(/^v/i, "").split("+", 1)[0];
+  const dash = bare.indexOf("-");
+  return dash === -1 ? "" : bare.slice(dash + 1);
+};
+
+/**
+ * Semver precedence of two pre-release labels: numeric identifiers compare
+ * numerically, others as text, numeric before text, and a label that is a
+ * prefix of the other comes first. Returns <0, 0 or >0.
+ */
+const comparePreRelease = (a: string, b: string): number => {
+  const as = a.split(".");
+  const bs = b.split(".");
+  for (let i = 0; i < Math.min(as.length, bs.length); i++) {
+    const an = /^\d+$/.test(as[i]);
+    const bn = /^\d+$/.test(bs[i]);
+    if (an && bn) {
+      const d = parseInt(as[i], 10) - parseInt(bs[i], 10);
+      if (d !== 0) return d;
+    } else if (an !== bn) {
+      return an ? -1 : 1;
+    } else if (as[i] !== bs[i]) {
+      return as[i] < bs[i] ? -1 : 1;
+    }
+  }
+  return as.length - bs.length;
+};
 
 /**
  * Compare semantic versions.
@@ -125,6 +162,17 @@ export const isNewerVersion = (current: string, latest: string): boolean => {
 
     if (latestPart > currentPart) return true;
     if (latestPart < currentPart) return false;
+  }
+
+  // Same release. Only when both carry a pre-release label are they ordered
+  // by it, as semver does: fork builds (0.83.1-spydasec.2 → 0.83.1-spydasec.3)
+  // and release candidates. A label on one side only stays "up to date", so a
+  // CI or fork build is not told to "update" to the plain release it is built
+  // from.
+  const currentPre = preRelease(current);
+  const latestPre = preRelease(latest);
+  if (currentPre && latestPre) {
+    return comparePreRelease(latestPre, currentPre) > 0;
   }
 
   return false;

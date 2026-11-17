@@ -9,7 +9,7 @@ import MemoizedNetBirdIcon from "@components/ui/MemoizedNetBirdIcon";
 import TextWithTooltip from "@components/ui/TextWithTooltip";
 import { useOverflowTooltip } from "@hooks/useOverflowTooltip";
 import { getOperatingSystem } from "@hooks/useOperatingSystem";
-import { compareVersions } from "@utils/version";
+import { isNewerVersion } from "@utils/version";
 import { ArrowRightIcon, ArrowUpCircleIcon } from "lucide-react";
 import * as React from "react";
 import { useMemo } from "react";
@@ -41,7 +41,7 @@ export default function PeerVersionCell({
     )
       return false;
     if (!latestVersion) return false;
-    return !compareVersions(version, latestVersion);
+    return isNewerVersion(version, latestVersion);
   }, [os, version, latestVersion, ephemeral]);
 
   const displayVersion = version == "development" ? "dev" : version;
