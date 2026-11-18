@@ -21,11 +21,11 @@ export const getLatestNetbirdRelease = async (
     );
 
   if (runFetch) {
-    const data = (await fetch(
-      `${GITHUB_API_ENDPOINT}/repos/${NETBIRD_RELEASES_REPO}/releases/latest`,
-    ).then((response) => response.json())) as any;
-
     try {
+      const data = (await fetch(
+        `${GITHUB_API_ENDPOINT}/repos/${NETBIRD_RELEASES_REPO}/releases/latest`,
+      ).then((response) => response.json())) as any;
+
       return {
         latest_version: data.name,
         last_checked: new Date(),

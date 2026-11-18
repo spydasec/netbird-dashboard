@@ -4,6 +4,12 @@ RUN apk add --no-cache bash curl less ca-certificates git tzdata zip gettext \
     nginx curl supervisor certbot-nginx && \
     rm -rf /var/cache/apk/* && mkdir -p /run/nginx
 
+# The repository whose releases the dashboard checks peers against (it must
+# match NEXT_PUBLIC_NETBIRD_RELEASES_REPO at build time); init_react_envs.sh
+# allows it in the Content-Security-Policy.
+ARG NETBIRD_RELEASES_REPO=netbirdio/netbird
+ENV NETBIRD_RELEASES_REPO=${NETBIRD_RELEASES_REPO}
+
 STOPSIGNAL SIGINT
 EXPOSE 80
 EXPOSE 443

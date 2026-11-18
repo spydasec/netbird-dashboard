@@ -194,6 +194,8 @@ jobs:
           file: docker/Dockerfile
           push: ${{ steps.version.outputs.push == 'true' }}
           platforms: linux/amd64,linux/arm64,linux/arm
+          build-args: |
+            NETBIRD_RELEASES_REPO=${{ github.repository_owner }}/netbird
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
       - name: Build and push (rootless)
@@ -203,6 +205,8 @@ jobs:
           file: docker/Dockerfile.rootless
           push: ${{ steps.version.outputs.push == 'true' }}
           platforms: linux/amd64,linux/arm64,linux/arm
+          build-args: |
+            NETBIRD_RELEASES_REPO=${{ github.repository_owner }}/netbird
           tags: ${{ steps.meta_rootless.outputs.tags }}
           labels: ${{ steps.meta_rootless.outputs.labels }}
       - name: Build and push (ubi)
@@ -215,6 +219,7 @@ jobs:
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
             RELEASE=${{ steps.version.outputs.release }}
+            NETBIRD_RELEASES_REPO=${{ github.repository_owner }}/netbird
           tags: ${{ steps.meta_ubi.outputs.tags }}
           labels: ${{ steps.meta_ubi.outputs.labels }}
 
