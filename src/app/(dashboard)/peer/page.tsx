@@ -70,8 +70,10 @@ import ReverseProxiesProvider, {
 import { ReverseProxyFlatTargetsTabContent } from "@/modules/reverse-proxy/targets/flat/ReverseProxyFlatTargetsTabContent";
 import { PeerEditIPModal } from "@/modules/peer/PeerEditIPModal";
 import { PeerSSHToggle } from "@/modules/peer/PeerSSHToggle";
+import { isSSHSupportedOnOS } from "@/modules/remote-access/osSupport";
 import { RDPButton } from "@/modules/remote-access/rdp/RDPButton";
 import { SSHButton } from "@/modules/remote-access/ssh/SSHButton";
+import { VNCButton } from "@/modules/remote-access/vnc/VNCButton";
 import { PeerExpirationSettings } from "@/modules/peer/PeerExpirationSettings";
 
 export default function PeerPage() {
@@ -169,12 +171,34 @@ const usePeerSettings = () => {
   return context;
 };
 
+type PeerTabGate = (
+  permission: ReturnType<typeof usePermissions>["permission"],
+) => boolean;
+
+const PEER_TAB_GATES = new Map<string, PeerTabGate>([
+  ["overview", () => true],
+  ["network-routes", (permission) => !!permission.routes.read],
+  ["accessible-peers", () => true],
+  ["reverse-proxies", (permission) => !!permission.services?.read],
+  ["peer-job", (permission) => !!permission.peers.delete],
+  ["traffic-events", (permission) => !!permission.events.read],
+]);
+
 const PeerSettingsProvider = ({ children }: { children: React.ReactNode }) => {
   const { mutate } = useSWRConfig();
   const { peer, peerGroups, update } = usePeer();
   const { permission } = usePermissions();
   const [name, setName] = useState(peer.name);
-  const [tab, setTab] = useState("overview");
+  const requestedTab = useSearchParams().get("tab") ?? "";
+  const linkedTab = PEER_TAB_GATES.get(requestedTab)?.(permission)
+    ? requestedTab
+    : "";
+  const [tab, setTab] = useState(linkedTab || "overview");
+  const [appliedLinkedTab, setAppliedLinkedTab] = useState(linkedTab);
+  if (linkedTab !== appliedLinkedTab) {
+    setAppliedLinkedTab(linkedTab);
+    if (linkedTab) setTab(linkedTab);
+  }
   const [selectedGroups, setSelectedGroups, { getAllGroupCalls }] =
     useGroupHelper({
       initial: peerGroups?.filter((g) => g?.name !== "All"),
@@ -257,7 +281,7 @@ const PeerHeader = () => {
                   <ModalTrigger>
                     <div
                       className={
-                        "flex h-8 w-8 items-center justify-center gap-2 dark:text-neutral-300 text-neutral-500 hover:text-neutral-100 transition-all hover:bg-nb-gray-800/60 rounded-md cursor-pointer"
+                        "flex h-8 w-8 items-center justify-center gap-2 text-nb-gray-400 dark:text-neutral-300 hover:text-nb-gray-100 dark:hover:text-neutral-100 transition-all hover:bg-nb-gray-800/60 rounded-md cursor-pointer"
                       }
                     >
                       <PencilIcon size={16} />
@@ -430,6 +454,13 @@ const PeerOverviewTabContent = () => {
   const { peer } = usePeer();
   const { permission } = usePermissions();
   const { selectedGroups, setSelectedGroups } = usePeerSettings();
+  const isSSHSupported = isSSHSupportedOnOS(peer?.os);
+  // Named in the order the buttons appear below, and only the ones that do.
+  // RDP and VNC are unconditional: those servers need not be ours, so any
+  // system may be running one.
+  const remoteAccessMethods = [isSSHSupported && "SSH", "RDP", "VNC"]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <div className={"px-8"}>
@@ -458,14 +489,17 @@ const PeerOverviewTabContent = () => {
             </div>
           )}
 
-          <PeerSSHToggle />
+          {isSSHSupported && <PeerSSHToggle />}
 
           <div>
             <Label>Remote Access</Label>
-            <HelpText>Connect directly to this peer via SSH or RDP.</HelpText>
+            <HelpText>
+              Connect directly to this peer via {remoteAccessMethods}.
+            </HelpText>
             <div className="flex gap-3">
               <SSHButton peer={peer} />
               <RDPButton peer={peer} />
+              <VNCButton peer={peer} />
             </div>
           </div>
         </div>
@@ -759,7 +793,7 @@ function EditableValue({
       <span>{value}</span>
       {canEdit && (
         <button
-          className="flex w-7 h-7 items-center justify-center gap-2 text-nb-gray-400 hover:text-neutral-100 transition-all hover:bg-nb-gray-800/60 rounded-md cursor-pointer"
+          className="flex w-7 h-7 items-center justify-center gap-2 text-nb-gray-400 hover:text-nb-gray-100 dark:hover:text-neutral-100 transition-all hover:bg-nb-gray-800/60 rounded-md cursor-pointer"
           onClick={(e) => {
             e.stopPropagation();
             onEdit();

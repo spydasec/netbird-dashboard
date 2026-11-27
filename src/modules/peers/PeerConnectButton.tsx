@@ -4,11 +4,9 @@ import {
   DropdownMenuTrigger,
 } from "@components/DropdownMenu";
 import FullTooltip from "@components/FullTooltip";
-import { getOperatingSystem } from "@hooks/useOperatingSystem";
 import { IconChevronDown } from "@tabler/icons-react";
 import * as React from "react";
 import { usePeer } from "@/contexts/PeerProvider";
-import { OperatingSystem } from "@/interfaces/OperatingSystem";
 import { RDPButton } from "@/modules/remote-access/rdp/RDPButton";
 import { SSHButton } from "@/modules/remote-access/ssh/SSHButton";
 import { cn } from "@utils/helpers";
@@ -16,10 +14,6 @@ import { cn } from "@utils/helpers";
 export const PeerConnectButton = () => {
   const { peer } = usePeer();
   const isConnected = peer.connected;
-  const os = getOperatingSystem(peer?.os);
-  const isMobile = os === OperatingSystem.ANDROID || os === OperatingSystem.IOS;
-
-  if (isMobile) return;
 
   return isConnected ? (
     <>
@@ -63,7 +57,7 @@ const ConnectButton = ({ disabled }: { disabled?: boolean }) => {
   return (
     <button
       className={cn(
-        "flex gap-2 items-center text-sm text-nb-gray-300 hover:text-white disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:bg-nb-gray-800/60 rounded-md py-2 px-3 disabled:text-nb-gray-700",
+        "flex gap-2 items-center text-sm text-nb-gray-300 hover:text-nb-gray-100 dark:hover:text-white disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:bg-nb-gray-800/60 rounded-md py-2 px-3 disabled:text-nb-gray-700",
         // group data state open
         "group-data-[state=open]:bg-nb-gray-800/30",
       )}
